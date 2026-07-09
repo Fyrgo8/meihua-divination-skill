@@ -1,39 +1,38 @@
-# meihua-divination-skill
+# 梅花易数解卦 Skill
 
-A public Codex skill for structured **Meihua Yishu** hexagram interpretation.
+这是一个公开的 Codex Skill 仓库，用来做 **结构化的梅花易数解卦**。
 
-It treats a skill as a small service rather than a long prompt: the repo contains a routing contract, input/output contract, failure handling rules, deterministic helper scripts, and layered references for deeper execution.
+它的设计目标不是“写一段很长的 Prompt”，而是把 Skill 当成一个小型服务来做：有清晰的路由契约、输入输出契约、失败处理、确定性脚本和分层参考材料，方便后续迭代、复用和公开维护。
 
-## What This Skill Does
+## 这个 Skill 解决什么问题
 
-This skill is built for **conversation-triggered Meihua divination reading** when the user already has a formed hexagram or enough casting information.
+这个 Skill 面向的是：**用户已经有了卦例，或者已经给出了足够的起卦结果字段，希望按梅花易数做结构化解读。**
 
-It focuses on:
+它当前重点覆盖四类任务：
 
-- structured Meihua Yishu readings
-- step-by-step `full-reading` output
-- quick judgment mode
-- intake checking when the case is incomplete
-- review mode for auditing an existing reading
+- 完整逐步解卦
+- 快速判断
+- 卦例信息检查
+- 对既有断语做复盘和审查
 
-It explicitly does **not** try to cover:
+它明确 **不处理** 下面这些内容：
 
-- Bazi / Four Pillars
-- Ziwei
-- full Liuyao NaJia systems
-- generic fortune talk without a hexagram
-- automatic casting from random raw inputs
+- 八字 / 四柱
+- 紫微
+- 六爻纳甲全体系
+- 没有卦例的泛泛运势闲聊
+- 从随机数字、声音、时间戳等原始输入自动起卦
 
-## Current Reading Logic
+## 当前采用的核心口径
 
-The current skill uses these explicit defaults:
+这个 Skill 当前写死的默认逻辑是：
 
 - `动卦为用，静卦为体`
-- strength analysis must consider **both 月令 and 卦气**
-- final strength judgment must land on **体相对用谁更强**
-- external signs are high-weight validators, not automatic overrides
+- 旺衰不能只看月令，要同时看 `月令 + 卦气`
+- 最终旺衰判断必须落到 `体相对用谁更强`
+- 外应是高权重校验器，但不是自动推翻主断的覆盖器
 
-## Repository Structure
+## 仓库结构
 
 ```text
 meihua-divination/
@@ -51,38 +50,54 @@ meihua-divination/
     └── normalize_case_input.py
 ```
 
-## Key Files
+## 关键文件说明
 
-- `SKILL.md`
-  The routing layer, input/output contract, execution flow, and failure handling.
+### `SKILL.md`
 
-- `references/workflow.md`
-  The core Meihua interpretation workflow.
+Skill 的薄契约层，负责：
 
-- `references/modes.md`
-  Execution depth for `intake / quick-reading / full-reading / review`.
+- 路由条件
+- 输入输出定义
+- 执行步骤
+- 失败处理
+- 版本边界
 
-- `references/output-contracts.md`
-  Fixed output templates so responses stay stable.
+### `references/workflow.md`
 
-- `scripts/normalize_case_input.py`
-  A deterministic helper that validates structured case input. It does **not** interpret the hexagram; it only normalizes data.
+主解卦流程文档，负责定义这套 Skill 的九步断卦主轴。
 
-## Installation
+### `references/modes.md`
 
-### Option 1: install as a local Codex skill
+不同模式的执行深度说明，目前包括：
 
-Place the repo under your Codex skill directory:
+- `intake`
+- `quick-reading`
+- `full-reading`
+- `review`
+
+### `references/output-contracts.md`
+
+固定输出模板，保证不同模式下的输出结构稳定，不会每次都漂。
+
+### `scripts/normalize_case_input.py`
+
+一个低自由度的辅助脚本，只做结构化卦例输入校验与归一化，不负责真正解卦。
+
+## 安装方式
+
+### 方式一：作为本地 Codex Skill 安装
+
+把仓库放到你的 Codex Skill 目录下，例如：
 
 ```text
-C:\Users\<your-user>\.codex\skills\meihua-divination
+C:\Users\<你的用户名>\.codex\skills\meihua-divination
 ```
 
-Restart Codex or open a new thread so the skill list is refreshed.
+随后重启 Codex，或者新开一个线程，让技能列表刷新。
 
-### Option 2: package as a `.skill`
+### 方式二：打包成 `.skill`
 
-If you already have the `skill-creator` helper installed, validate and package with:
+如果你的环境里已经装了 `skill-creator`，可以先校验再打包：
 
 ```powershell
 $env:PYTHONUTF8='1'
@@ -90,37 +105,40 @@ py -3 C:\Users\冯\.codex\skills\skill-creator\scripts\quick_validate.py C:\User
 py -3 -m scripts.package_skill C:\Users\冯\.codex\skills\meihua-divination C:\Users\冯\.codex\skills\dist
 ```
 
-## Example Trigger
+## 示例触发语句
 
 ```text
 问工作变动：上坤下乾，初爻动，泰之升，未月。按梅花易数完整断一下。
 ```
 
-Expected behavior:
+预期行为：
 
-- route into `full-reading`
-- determine body/use with `动卦为用，静卦为体`
-- analyze relation, strength, movement, transformed hexagram, mutual hexagram, external signs, and fallback checks
-- output a structured reading instead of free-form mystical slogans
+- 路由到 `full-reading`
+- 先按 `动卦为用，静卦为体` 定体用
+- 再看生克、旺衰、动爻、变卦、互卦、外应和错综
+- 最后输出一份结构化断语，而不是散乱的玄学感想
 
-## Design Notes
+## 设计思路
 
-This repo follows a “skill as microservice” approach:
+这个仓库遵循的是一种“Skill 作为微服务”的思路：
 
-- route precisely
-- keep the main contract thin
-- push deterministic work into scripts
-- keep interpretation logic layered in references
-- make failure modes explicit instead of hiding them in prompt prose
+- 路由要准，宁可少触发，也别乱触发
+- 主文件要薄，把大段方法细节下沉到 `references/`
+- 确定性动作尽量下沉到 `scripts/`
+- 失败场景要显式写出来，而不是藏在提示词气氛里
+- 输出模板要固定，方便复盘和迭代
 
-## Status
+## 当前状态
 
-Current state:
+当前已经完成：
 
-- local Codex skill structure complete
-- validation passes with UTF-8 mode enabled on Windows
-- includes minimal eval prompts for trigger testing
+- 本地 Codex Skill 结构搭建完成
+- Windows 下 UTF-8 模式校验通过
+- 提供了最小 `evals` 用于触发测试
+- 已经公开发布到 GitHub，方便继续迭代
 
-## License
+## 许可证
 
-No license file is attached yet. Add one before broad redistribution if you want explicit reuse permissions.
+当前仓库还没有附 `LICENSE` 文件。
+
+如果你希望别人明确知道是否可以复用、修改和再分发，建议后续补一个开源许可证。
