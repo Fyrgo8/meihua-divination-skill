@@ -1,7 +1,6 @@
 ---
 name: meihua-divination
-description: "Interpret Meihua Yishu hexagrams into structured judgments when the user provides a formed hexagram or enough raw casting info such as upper/lower trigram, moving line, question context, and optional month/day or external signs, and wants a step-by-step reading, intake check, or drill review. Do not use for Bazi, Ziwei, full Liuyao NaJia analysis, generic fortune talk without a hexagram, or purely historical discussion. Output one of: missing-info checklist, structured reading, or teaching-style review."
-compatibility: "Optional local Python for structured case normalization via scripts/normalize_case_input.py."
+description: "Interpret formed Meihua Yishu hexagrams with a complete nine-step structured reading covering body/use, generating-controlling relations, strength, moving line, resulting hexagram, mutual hexagram, external signs, and opposite/reversed views. Do not use for Bazi, Ziwei, full Liuyao NaJia analysis, generic fortune talk without a hexagram, or purely historical discussion."
 ---
 
 # Meihua Divination
@@ -23,7 +22,7 @@ compatibility: "Optional local Python for structured case normalization via scri
 
 ### 高频触发表达
 - 中文：`帮我解这个梅花卦`、`按梅花易数断一下`、`复盘这卦哪里断歪了`、`这卦体用怎么定`、`把这个卦例整理成完整断语`
-- English mixed: `read this meihua hexagram`, `review my meihua reading`, `walk through this hexagram step by step`
+- English mixed: `read this meihua hexagram`, `walk through this hexagram step by step`
 
 ### 路由优先级
 - `梅花卦例的结构化解读 / 复盘 / 教学` -> 本 Skill
@@ -35,12 +34,22 @@ compatibility: "Optional local Python for structured case normalization via scri
 
 | 字段 | 类型 | 示例 | 缺失默认行为 |
 | --- | --- | --- | --- |
-| `task_mode` | 字符串 | `intake` / `quick-reading` / `full-reading` / `review` | 由模型根据用户目标判定；无法判定时按 `intake -> full-reading` 走 |
 | `question_context` | 字符串 | `问华为 offer 能不能过` | 缺失时先追问问事对象与关注点；不要直接开断 |
 | `hexagram_source` | 字符串或结构化对象 | `泰之升，初爻动` / `上坤下乾，一爻动` | 若能从上下文唯一还原则继续；否则只追问最小缺口 |
 | `time_context` | 字符串或结构化对象 | `未月，庚申日` | 默认可缺；仅在旺衰难分时再要求更完整信息 |
 | `external_signs` | 字符串或列表 | `起卦时杯子摔碎`、`面朝西，下雨` | 默认可缺；缺失不等于“没有外应”，`full-reading` 的第八步必须给出非阻塞回忆提示，禁止编造 |
 | `output_target` | 字符串 | `chat` / `markdown` | 默认 `chat`；若用户说“整理成清单/笔记”，默认 `markdown` |
+
+## 卦义说明要求（强制）
+
+- 解释本卦、互卦、变卦时，必须先独立说明该六十四卦在《易经》语境中的通行本义，再落到当前问事；不能只把卦名当作吉凶标签或心理关键词。
+- 每个被使用的卦必须按以下顺序展开：`卦名的原始语义 -> 上下卦组合形成的核心画面 -> 该卦原本描述的过程/关系/张力 -> 当前问题中的对应 -> 直接支持与条件推断`。
+- 必须区分三个层次：六十四卦的卦义、上下经卦的单象、当前问事的应用。不能用“坎=谨慎”“复=重新开始”这样的单个词替代完整卦义，也不能把八卦单象冒充六十四卦本义。
+- 本卦的本义用于说明眼下的局面；互卦的本义用于说明事情内部和中段机制；变卦的本义用于说明走势落点。每个层次都要先讲本义，再做对应，不能倒置。
+- 最低交付标准：`full-reading` 中本卦、互卦、变卦必须分别有独立的“本义”段落，通常写两到四句，包含卦名语义和组合画面。
+- 本义使用简明人话；只有在爻辞或经典语句能提升理解时才引用，并先解释字面画面，不要求堆砌经文或展开考据。
+- 如果一个卦有多种通行解释，先说明共同的核心语义，再选择与当前问事最相关的主线，并标注应用部分属于推断。
+- 输出前自检：脱离当前问题后，读者是否仍能明白这个卦原本描述什么？如果不能，说明本义解释不合格，必须补写后再断。
 
 ## 执行步骤（标注执行者：模型 / 脚本）
 
@@ -48,14 +57,13 @@ compatibility: "Optional local Python for structured case normalization via scri
 - 触发后先读本文件，不要默认整包加载所有参考材料。
 - 只在需要时加载：
 - `references/workflow.md`：九步断卦主流程与边界
-- `references/modes.md`：不同任务模式的执行深度
 - `references/output-contracts.md`：固定输出模板
 - `scripts/normalize_case_input.py`：当用户给的是 JSON 或字段化卦例时，做低自由度校验与归一化
 - `resources/case-input.example.json`：用户要求结构化样例时再引用
 
 ### 执行闭环
-1. `模型`：判定任务模式。
-   从用户请求中判断当前是 `intake / quick-reading / full-reading / review` 哪一种。若用户说“帮我看看”，但信息不完整，先进入 `intake`。
+1. `模型`：固定使用 `full-reading`。
+   所有形成卦例的请求一律按完整九步结构输出；信息不完整时，在同一结构中先指出缺口并请求最小补充，不切换到其他模式。
 
 2. `模型`：校验输入契约。
    最少确认 `问什么 + 卦怎么起出来的或已经成了什么卦`。信息不够时，只补齐最小缺口，不要开放式盘问。
@@ -65,9 +73,9 @@ compatibility: "Optional local Python for structured case normalization via scri
 
 4. `模型`：读取 `references/workflow.md`，按主轴断卦。
    必须先走 `体用 -> 生克 -> 旺衰 -> 动爻位置 -> 变卦路径 -> 变卦落点 -> 互卦 -> 外应 -> 错综`，不要见一象断一象。
+   在涉及本卦、互卦、变卦时，强制执行“本义先行”：先讲卦的本来含义，再讲当前问事的对应。
 
-5. `模型`：读取 `references/modes.md` 中对应模式的小节。
-   `quick-reading` 压缩输出，`full-reading` 逐步展开，`review` 专查别人断语中的逻辑跳步和口径混乱。
+5. `模型`：按 `full-reading` 固定结构输出，不根据用户措辞切换模式。
 
 6. `模型`：读取 `references/output-contracts.md`，按固定模板产出。
    始终先给结论，再给证据；明确区分“卦象支持”“推断补充”“信息不足”。
@@ -92,26 +100,35 @@ compatibility: "Optional local Python for structured case normalization via scri
 ### 通用要求
 - 默认输出 Markdown。
 - 先给人话结论，再展开九步依据。
+- 最终结论必须给出单一、明确的方向，不得用“有机会但”“倾向于”“可能”“取决于”“未必”等措辞回避二选一判断。对“能不能/会不会/是否”类问题，必须明确写“能/不能”“会/不会”或“是/否”。
+- 风险、限制与不确定性只能放在证据和过程说明中，不能在最终结论句反向打补丁。即使证据强弱不一，也必须先落一个主判，再说明代价、路径或可能的落差。
 - 任何不确定处都要显式标注 `这里是推断，不是硬证据`。
 - 不要混入完整六爻纳甲系统的六亲、六神、世应等术语，除非用户明确要求切换体系。
 
-### 模式到输出的固定映射
-- `intake` -> `缺什么 / 为什么缺 / 补到什么程度就能断`
-- `quick-reading` -> `结论 / 主因 / 风险点 / 下一步`
-- `full-reading` -> `完整九步断卦 + 最终落人话`
-- `review` -> `原断语哪里站得住 / 哪里跳步 / 应该怎样改`
+### 固定输出模式
+
+- 唯一模式为 `full-reading`：完整九步断卦 + 最终落人话。
+- 信息不完整、用户要求快速判断或用户要求复盘时，仍使用 `full-reading`；把缺口、压缩说明或复盘意见放进同一模板，不创建其他模式。
+
+### 明确结论硬约束
+
+- 先判断问题的极性：求职/录用/找到/成功类问题输出“成”或“不成”；去不去、会不会类问题输出“会”或“不会”；能否、是否类问题输出“能/不能”或“是/否”。
+- 结论只允许一个主方向。不得在同一结论中并列相反方向，例如“会去，但也可能不去”“能找到，不过未必满意”。
+- “满意”“核心”“高含金量”等限定词属于问题本身，必须整体判断，不能把“找到”与“满意”拆开后分别给相反答案。
+- 若卦象只支持弱证据，降低断语的解释细节或时间精度，不降低结论的明确性；可写“结论：不会；依据：……”，不可写“结论：目前难说”。
+- 下一步建议可以写条件和风险，但不得用条件句撤回已经给出的主判。
 
 ## 失败处理（场景 / 检测 / 动作）
 
 | 场景 | 检测 | 动作 |
 | --- | --- | --- |
-| 卦例不完整 | 只有问题，没有卦；只有卦名，没有动爻也无说明 | 进入 `intake`，只索要最小必要字段 |
+| 卦例不完整 | 只有问题，没有卦；只有卦名，没有动爻也无说明 | 在 `full-reading` 开头说明缺失字段并请求最小必要补充，不切换模式 |
 | 体系混杂 | 用户同时提六亲、世应、旬空、八字十神等 | 明确提示当前 Skill 只按梅花主轴断；若要切体系，先停下 |
 | 体用不清 | 动静分配不明、上下两卦都动、或用户明确采用其他流派 | 先按“动卦为用、静卦为体”复核；若仍歧义，再退回主体/客体原则并显式说明 |
 | 旺衰难判 | 只看月令拉不开强弱，或月令与卦气给出的方向不一致 | 先分开说明月令与卦气各自怎么影响，再落到体用相对强弱；若仍不足，降低结论强度 |
 | 外应未提供 | `full-reading` 中没有给出起卦瞬间的外应 | 不要写成“无外应”；在第八步给出常见现象的非阻塞回忆提示，主断仍可继续 |
 | 外应喧宾夺主 | 只凭一个突兀事件推翻全部卦象 | 把外应退回“高权重校验”，重新审视主断 |
-| 结论过满 | 信息不完整却直接断成败时间点 | 显式改写为区间判断或条件判断 |
+| 结论过满 | 信息不完整却直接断成败时间点 | 保留成/不成等单一主判，只降低时间精度和证据强度；风险与条件放到主判之后说明 |
 | 用户其实要理论 | 问的是“梅花易数怎么学”而非具体卦例 | 不走完整断卦链，转为简短说明或建议对应学习流程 |
 
 ## 示例（正例 + 反例）

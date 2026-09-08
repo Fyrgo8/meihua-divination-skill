@@ -21,12 +21,9 @@
 
 这个 Skill 面向的是：**用户已经有了卦例，或者已经给出了足够的起卦结果字段，希望按梅花易数做结构化解读。**
 
-它当前重点覆盖四类任务：
+它当前只提供一种任务模式：完整逐步解卦（`full-reading`）。
 
-- 完整逐步解卦
-- 快速判断
-- 卦例信息检查
-- 对既有断语做复盘和审查
+信息检查、快速判断和既有断语复盘都在同一份完整九步断卦中完成，不再拆分为独立模式。
 
 它明确 **不处理** 下面这些内容：
 
@@ -44,6 +41,7 @@
 - 旺衰不能只看月令，要同时看 `月令 + 卦气`
 - 最终旺衰判断必须落到 `体相对用谁更强`
 - 外应是高权重校验器，但不是自动推翻主断的覆盖器
+- 唯一任务模式是 `full-reading`
 
 ## 仓库结构
 
@@ -54,7 +52,6 @@ meihua-divination/
 ├── evals/
 │   └── evals.json
 ├── references/
-│   ├── modes.md
 │   ├── output-contracts.md
 │   └── workflow.md
 ├── resources/
@@ -79,18 +76,9 @@ Skill 的薄契约层，负责：
 
 主解卦流程文档，负责定义这套 Skill 的九步断卦主轴。
 
-### `references/modes.md`
-
-不同模式的执行深度说明，目前包括：
-
-- `intake`
-- `quick-reading`
-- `full-reading`
-- `review`
-
 ### `references/output-contracts.md`
 
-固定输出模板，保证不同模式下的输出结构稳定，不会每次都漂。
+固定输出模板，保证 `full-reading` 的输出结构稳定，不会每次都漂。
 
 ### `scripts/normalize_case_input.py`
 
